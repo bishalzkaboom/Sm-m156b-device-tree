@@ -1,0 +1,41 @@
+name: Build TWRP
+
+on:
+  workflow_dispatch:   # lets you start build manually
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Checkout device tree
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev \
+        gcc-multilib g++-multilib libc6-dev-i386 libncurses5-dev \
+        libx11-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python-is-python3
+
+    - name: Sync TWRP source
+      run: |
+        mkdir ~/twrp && cd ~/twrp
+        repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
+        repo sync -j$(nproc --all)
+        # copy device tree into correct place
+        mkdir -p device/samsung/m156b
+        cp -r $GITHUB_WORKSPACE/* device/samsung/m156b/
+
+    - name: Build TWRP
+      run: |
+        cd ~/twrp
+        . build/envsetup.sh
+        lunch twrp_m156b-eng
+        mka recoveryimage
+
+    - name: Upload recovery.img
+      uses: actions/upload-artifact@v3
+      with:
+        name: twrp-recovery
+        path: ~/twrp/out/target/product/m156b/recovery.img
